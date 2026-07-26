@@ -1,0 +1,4 @@
+*.wav
+*.eml
+*.aiff
+__pycache__/

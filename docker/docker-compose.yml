@@ -1,0 +1,21 @@
+services:
+  whisper:
+    build:
+      context: .
+      args:
+        # tiny.en | base.en | small.en | medium.en  (bigger = more accurate, slower)
+        MODEL: base.en
+    image: freepbx-whisper:base.en
+    container_name: whisper-vm
+    restart: unless-stopped
+    environment:
+      WHISPER_LANG: en
+      WHISPER_THREADS: 4
+    # Bind to localhost only — the PBX talks to it over loopback.
+    ports:
+      - "127.0.0.1:8088:8080"
+    healthcheck:
+      test: ["CMD", "sh", "-c", "curl -sf -F file=@/dev/null http://127.0.0.1:8080/inference >/dev/null 2>&1 || true; exit 0"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
