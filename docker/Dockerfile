@@ -5,11 +5,17 @@ ARG MODEL=base.en
 FROM debian:12-slim AS build
 ARG MODEL
 RUN apt-get update && apt-get install -y --no-install-recommends \
-        git g++ make cmake ca-certificates curl \
+        git make cmake ca-certificates curl clang \
     && rm -rf /var/lib/apt/lists/*
 WORKDIR /src
 RUN git clone --depth 1 https://github.com/ggml-org/whisper.cpp .
+# Build with clang: GCC 12 on arm64 fails to inline FP16 NEON intrinsics
+# (vfmaq_f16 "target specific option mismatch") under -mcpu=native.
+# Static libs -> self-contained whisper-server binary (no libwhisper.so to ship).
+# clang avoids a GCC-12/arm64 FP16-intrinsic inlining failure; harmless on x86.
 RUN cmake -B build -DCMAKE_BUILD_TYPE=Release \
+        -DBUILD_SHARED_LIBS=OFF \
+        -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ \
     && cmake --build build -j --config Release --target whisper-server
 RUN bash ./models/download-ggml-model.sh ${MODEL}
 

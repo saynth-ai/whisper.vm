@@ -43,7 +43,7 @@ freepbx-whisper-vm/
 │   └── test-transcribe.sh   # end-to-end test, does NOT touch the live PBX
 ├── docker/
 │   ├── Dockerfile           # whisper.cpp HTTP server image
-│   └── docker-compose.yml   # runs it on 127.0.0.1:8088
+│   └── docker-compose.yml   # runs it on 127.0.0.1:8078
 └── config/
     └── whisper.env          # backend + paths (installed to /etc/whisper-vm/whisper.env)
 ```
@@ -69,7 +69,7 @@ Run the transcription engine in a container instead of building on the host:
 
 ```bash
 cd freepbx-whisper-vm/docker
-docker compose up -d --build          # serves 127.0.0.1:8088
+docker compose up -d --build          # serves 127.0.0.1:8078
 ```
 
 Then still install the wrapper scripts on the PBX host (they call the container
@@ -77,7 +77,7 @@ over loopback) and set the backend to http in `/etc/whisper-vm/whisper.env`:
 
 ```
 WHISPER_BACKEND=http
-WHISPER_URL=http://127.0.0.1:8088/inference
+WHISPER_URL=http://127.0.0.1:8078/inference
 ```
 
 The wrapper script must live on the PBX host itself because Asterisk executes

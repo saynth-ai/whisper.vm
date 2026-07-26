@@ -30,6 +30,32 @@ import datetime
 from email import message_from_bytes
 from email.message import Message
 
+def load_env_file():
+    """Populate os.environ from the config file (existing env wins).
+    Asterisk invokes mailcmd with a bare environment, so without this the
+    wrapper would only ever see the built-in defaults."""
+    candidates = [
+        "/etc/whisper-vm/whisper.env",
+        os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "config", "whisper.env"),
+    ]
+    for path in candidates:
+        if not os.path.isfile(path):
+            continue
+        with open(path) as fh:
+            for line in fh:
+                line = line.strip()
+                if not line or line.startswith("#") or "=" not in line:
+                    continue
+                if line.startswith("export "):
+                    line = line[len("export "):]
+                key, _, val = line.partition("=")
+                key = key.strip()
+                val = val.strip().strip('"').strip("'")
+                os.environ.setdefault(key, val)  # existing env wins
+
+
+load_env_file()
+
 SENDMAIL_BIN = os.environ.get("SENDMAIL_BIN", "/usr/sbin/sendmail -t")
 TRANSCRIBE_SCRIPT = os.environ.get(
     "TRANSCRIBE_SCRIPT",

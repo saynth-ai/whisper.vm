@@ -74,7 +74,7 @@ case "$WHISPER_BACKEND" in
             -F "temperature=0.0" \
             -F "response_format=json" \
             "$WHISPER_URL")" || { echo "whisper server request failed: $WHISPER_URL" >&2; exit 5; }
-        printf '%s' "$RESP" | python3 -c 'import sys,json; print(json.load(sys.stdin).get("text","").strip())'
+        printf '%s' "$RESP" | python3 -c 'import sys,json; print(" ".join(json.load(sys.stdin).get("text","").split()))'
         ;;
     *)
         echo "unknown WHISPER_BACKEND: $WHISPER_BACKEND" >&2

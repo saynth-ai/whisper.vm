@@ -12,8 +12,9 @@ services:
       WHISPER_LANG: en
       WHISPER_THREADS: 4
     # Bind to localhost only — the PBX talks to it over loopback.
+    # NOTE: 8088 is Asterisk's own HTTP/ARI port; we use 8078 to avoid a clash.
     ports:
-      - "127.0.0.1:8088:8080"
+      - "127.0.0.1:8078:8080"
     healthcheck:
       test: ["CMD", "sh", "-c", "curl -sf -F file=@/dev/null http://127.0.0.1:8080/inference >/dev/null 2>&1 || true; exit 0"]
       interval: 30s
