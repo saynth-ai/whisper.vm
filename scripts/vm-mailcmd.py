@@ -57,10 +57,12 @@ def load_env_file():
 load_env_file()
 
 SENDMAIL_BIN = os.environ.get("SENDMAIL_BIN", "/usr/sbin/sendmail -t")
-TRANSCRIBE_SCRIPT = os.environ.get(
-    "TRANSCRIBE_SCRIPT",
-    os.path.join(os.path.dirname(os.path.abspath(__file__)), "vm-transcribe.sh"),
-)
+_SIBLING_TRANSCRIBE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "vm-transcribe.sh")
+TRANSCRIBE_SCRIPT = os.environ.get("TRANSCRIBE_SCRIPT", _SIBLING_TRANSCRIBE)
+# If the configured path is stale (e.g. cloned to a different dir than install.sh
+# assumes), fall back to the transcribe script shipped alongside this wrapper.
+if not os.path.isfile(TRANSCRIBE_SCRIPT) and os.path.isfile(_SIBLING_TRANSCRIBE):
+    TRANSCRIBE_SCRIPT = _SIBLING_TRANSCRIBE
 TRANSCRIBE_TIMEOUT = int(os.environ.get("TRANSCRIBE_TIMEOUT", "120"))
 LOG = os.environ.get("TRANSCRIBE_LOG", "/var/log/asterisk/vm-transcribe.log")
 
