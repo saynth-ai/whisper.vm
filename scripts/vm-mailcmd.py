@@ -9,7 +9,9 @@ WAV attachment) and pipes it to whatever `mailcmd` is configured. Normally that 
   1. read the full RFC822 email from stdin (as FreePBX generated it),
   2. find the audio attachment and transcribe it with Whisper,
   3. insert the transcript at the top of the message body,
-  4. hand the modified message off to the real sendmail.
+  4. strip the audio attachment -- Asterisk already keeps the recording in the
+     mailbox spool, so the email carries the transcript instead of the WAV,
+  5. hand the modified message off to the real sendmail.
 
 FAIL-SAFE: if anything goes wrong (no attachment, whisper error, timeout...),
 the ORIGINAL, unmodified email is still delivered. A voicemail notification is
@@ -20,6 +22,8 @@ Config via environment (see config/whisper.env), with defaults:
   TRANSCRIBE_SCRIPT   path to vm-transcribe.sh
   TRANSCRIBE_TIMEOUT  seconds before giving up   (default: 120)
   TRANSCRIBE_LOG      log file                   (default: /var/log/asterisk/vm-transcribe.log)
+  NO_AUDIO_ATTACH     1 = drop the WAV from the email, 0 = leave it attached
+                      (default: 1; the recording stays in the mailbox either way)
 """
 import os
 import sys
@@ -65,6 +69,7 @@ if not os.path.isfile(TRANSCRIBE_SCRIPT) and os.path.isfile(_SIBLING_TRANSCRIBE)
     TRANSCRIBE_SCRIPT = _SIBLING_TRANSCRIBE
 TRANSCRIBE_TIMEOUT = int(os.environ.get("TRANSCRIBE_TIMEOUT", "120"))
 LOG = os.environ.get("TRANSCRIBE_LOG", "/var/log/asterisk/vm-transcribe.log")
+NO_AUDIO_ATTACH = os.environ.get("NO_AUDIO_ATTACH", "1").strip().lower() in ("1", "yes", "true", "on")
 
 
 def log(msg):
@@ -81,16 +86,41 @@ def send(raw_bytes):
     subprocess.run(shlex.split(SENDMAIL_BIN), input=raw_bytes, check=True)
 
 
+def is_audio_part(part):
+    """True if this leaf part looks like an audio attachment."""
+    if part.is_multipart():
+        return False
+    ctype = (part.get_content_type() or "").lower()
+    fname = (part.get_filename() or "").lower()
+    return ctype.startswith("audio/") or fname.endswith((".wav", ".gsm", ".mp3", ".ogg"))
+
+
 def find_audio_part(msg):
     """Return the first part that looks like an audio attachment, else None."""
     for part in msg.walk():
-        if part.is_multipart():
-            continue
-        ctype = (part.get_content_type() or "").lower()
-        fname = (part.get_filename() or "").lower()
-        if ctype.startswith("audio/") or fname.endswith((".wav", ".gsm", ".mp3", ".ogg")):
+        if is_audio_part(part):
             return part
     return None
+
+
+def strip_audio_parts(msg):
+    """Drop every audio attachment from the message in place; return how many went.
+
+    Only called once the transcript is safely injected. Nothing is lost: Asterisk
+    keeps the recording in the mailbox spool, and it stays reachable by phone or
+    from the FreePBX UCP. A container is left untouched if this would empty it."""
+    removed = 0
+    containers = [p for p in msg.walk() if p.is_multipart()]  # snapshot: we mutate below
+    for part in containers:
+        payload = part.get_payload()
+        if not isinstance(payload, list):
+            continue
+        kept = [sub for sub in payload if not is_audio_part(sub)]
+        if not kept or len(kept) == len(payload):
+            continue
+        part.set_payload(kept)
+        removed += len(payload) - len(kept)
+    return removed
 
 
 def transcribe(audio_bytes, suffix):
@@ -191,6 +221,8 @@ def main():
             % (len(payload), len(transcript), transcript[:200]))
 
         modified = inject_transcript(msg, transcript)
+        if NO_AUDIO_ATTACH:
+            log("removed %d audio attachment(s)" % strip_audio_parts(modified))
         send(modified.as_bytes())
     except Exception as e:  # noqa: BLE001  -- deliberately broad; must not drop mail
         log("ERROR %r; delivering original email unchanged" % e)

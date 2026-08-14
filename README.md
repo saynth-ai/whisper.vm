@@ -21,6 +21,7 @@ wrapper in front of sendmail:
                                               │  2. resample 8k→16k (sox/ffmpeg)
                                               │  3. Whisper transcribe (local or Docker)
                                               │  4. inject transcript into body
+                                              │  5. drop the WAV attachment
                                               ▼
                                         /usr/sbin/sendmail -t  ──►  user's inbox
 ```
@@ -128,7 +129,8 @@ scripts/test-transcribe.sh
 ```
 
 It prints the transcript, then shows the delivered email so you can confirm the
-transcript block was injected above the body and the WAV is still attached.
+transcript block was injected above the body and the WAV attachment was dropped
+(set `NO_AUDIO_ATTACH=0` if you want it kept).
 
 You can also just test the engine on any audio file:
 
@@ -142,6 +144,19 @@ You can also just test the engine on any audio file:
   16 kHz mono with `sox` (preferred) or `ffmpeg`. One of those must be present.
 - **Language:** defaults to English (`WHISPER_LANG=en`, `.en` models). For other
   languages use a multilingual model (`base`, `small`…) and set `WHISPER_LANG`.
+- **Audio attachment:** once transcribed, the WAV is stripped from the email
+  (`NO_AUDIO_ATTACH=1`, the default) — the recording stays in the mailbox spool,
+  so phone and UCP playback are unaffected and the email travels as text. Set
+  `NO_AUDIO_ATTACH=0` in `/etc/whisper-vm/whisper.env` to keep it attached.
+  Failures always deliver the original email, attachment included.
+- **Retention:** because recordings no longer leave the box by email, nothing
+  prompts users to clear them. A cron job keeps the spool bounded — note the
+  `-mindepth 4`, without which this deletes every mailbox *greeting*:
+  ```
+  17 3 * * * find /var/spool/asterisk/voicemail -mindepth 4 -name 'msg*' -type f -mtime +7 -delete
+  ```
+  With `pollmailboxes=yes` in `voicemail.conf`, Asterisk notices the deletions
+  and clears stale MWI lamps on its own.
 - **Latency:** transcription runs when the email is sent, so the email arrives a
   few seconds later than before. `TRANSCRIBE_TIMEOUT` (default 120s) caps it; on
   timeout the original email is sent.

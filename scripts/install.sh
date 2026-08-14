@@ -54,6 +54,7 @@ TRANSCRIBE_SCRIPT=$INSTALL_DIR/vm-transcribe.sh
 TRANSCRIBE_TIMEOUT=120
 SENDMAIL_BIN=/usr/sbin/sendmail -t
 TRANSCRIBE_LOG=/var/log/asterisk/vm-transcribe.log
+NO_AUDIO_ATTACH=1
 EOF
 
 # Make the env available to the scripts (they also read /etc/whisper-vm/whisper.env).
